@@ -1,0 +1,118 @@
+#!/usr/bin/bash
+
+#Check if script is running as root
+if [[ $EUID -ne 0 ]]; then
+   echo "This script must be run as root"
+   exit 1
+fi
+
+#Define the function for installing SoftEther VPN
+install_softether() {
+    if [ $(uname -m) != "x86_64" ]; then
+        echo "This script is just for Intel_X64 Architecture"
+        exit 1
+    fi
+
+    echo "Nowww !! You can go installed this Script's SoftEther-VPN for Ubuntu."
+
+    #Install dependencies
+    apt-get update
+    apt-get install build-essential wget gnupg2 gcc make -y
+
+    #Download SoftEther VPN for Ubuntu
+    echo "Downloading SoftEther VPN server..."
+    wget https://github.com/SoftEtherVPN/SoftEtherVPN_Stable/releases/download/v4.38-9760-rtm/softether-vpnserver-v4.38-9760-rtm-2021.08.17-linux-x64-64bit.tar.gz
+
+    #Extract SoftEther VPN server
+    tar -zxvf softether-vpnserver-v4.38-9760-rtm-2021.08.17-linux-x64-64bit.tar.gz
+    cd vpnserver
+    make
+    cd ..
+    mv vpnserver /usr/local/
+    cd /usr/local/vpnserver/
+
+#Set permissions and start SoftEther VPN server
+    chmod 600 *
+    chmod 700 vpnserver
+    chmod 700 vpncmd
+    touch /etc/init.d/vpnserver
+    cat << EOF > /etc/init.d/vpnserver
+#!/bin/sh
+# chkconfig: 2345 99 01
+# description: SoftEther VPN Server
+DAEMON=/usr/local/vpnserver/vpnserver
+LOCK=/var/lock/subsys/vpnserver
+test -x $DAEMON || exit 0
+case "$1" in
+start)
+$DAEMON start
+touch $LOCK
+;;
+stop)
+$DAEMON stop
+rm $LOCK
+;;
+restart)
+$DAEMON stop
+sleep 3
+$DAEMON start
+;;
+*)
+echo "Usage: $0 {start|stop|restart}"
+exit 1
+esac
+exit 0
+EOF
+
+    chmod 755 /etc/init.d/vpnserver
+    /etc/init.d/vpnserver start
+    update-rc.d vpnserver defaults
+    systemctl daemon-reload
+    systemctl start vpnserver
+    systemctl enable vpnserver
+
+    echo "SoftEther VPN installed successfully."
+}
+
+#Uninstall SoftEther VPN
+uninstall_softether() {
+
+    #Stop the SoftEther VPN server
+    
+    /etc/init.d/vpnserver stop
+    /sbin/chkconfig --del vpnserver
+
+    #Delete SoftEther VPN server files
+    rm -rf /etc/init.d/vpnserver
+
+    echo "SoftEther VPN uninstalled successfully."
+}
+#Define the function for checking the status of SoftEther VPN
+check_status(){
+
+#Check if the SoftEther VPN service is running
+if ps ax | grep "[v]pnserver" > /dev/null;then
+        echo "SoftEther VPN is running"
+else
+        echo "SoftEther VPN is not running"
+fi
+}
+#Define the case switch
+case "$1" in
+    install)
+        install_softether
+        ;;
+    uninstall)
+        uninstall_softether
+        ;;
+    status)
+	check_status
+        ;;
+*)
+        echo "Usage: $0 {install}"
+        exit 1
+esac
+
+exit 0
+    
+
